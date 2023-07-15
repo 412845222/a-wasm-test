@@ -64,15 +64,32 @@ export default defineComponent({
 
         //灰度图‘
         const data = imageData.data;
+
+        /*
         for (let i = 0; i < data.length; i += 4) {
           const avg = (data[i] + data[i + 1] + data[i + 2]) / 3;
           data[i] = avg;
           data[i + 1] = avg;
           data[i + 2] = avg;
         }
+        */
+
+
+        let len = data.length * data.BYTES_PER_ELEMENT;
+        var ptr = Module._malloc(len);
+        Module.HEAPU8.set(data, ptr);
+
+        Module.ccall("image_process", "number", ["number", "number"], [ptr, len]);
+
+        let jsData = new Uint8ClampedArray(HEAPU8.subarray(ptr, ptr + len));
+
+        var image = new ImageData(jsData, imageData.width, imageData.height);
+
+        Module._free(ptr);
 
         //渲染
-        canvasCtx.value!.putImageData(imageData, 0, 0);
+        // canvasCtx.value!.putImageData(imageData, 0, 0);
+        canvasCtx.value!.putImageData(image, 0, 0);
       }
     };
 
@@ -149,7 +166,7 @@ export default defineComponent({
 
     //@ts-ignore
     window.processVideoData = (imageData: ImageData, fps: number) => {
-      // console.log(imageData,fpsNum)
+      console.log(imageData,fpsNum)
       const data = imageData.data;
       //灰度图‘
       for (let i = 0; i < data.length; i += 4) {
