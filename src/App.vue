@@ -14,7 +14,8 @@
       <select v-model="modeChoose" name="" id="" @change="modeChange">
         <option value="0">未设置</option>
         <option value="1">JavaScript</option>
-        <option value="2">WASM</option>
+        <option value="2">Golang_WASM</option>
+        <option value="3">C++_WASM</option>
       </select>
     </div>
   </div>
@@ -41,7 +42,6 @@ export default defineComponent({
     let startTime = 0;
     let lastTime = 0;
 
-
     const videoPlayCallBack = () => {
       startTime = performance.now();
       lastTime = startTime;
@@ -60,32 +60,29 @@ export default defineComponent({
 
       if (offscreenCtx.value) {
         offscreenCtx.value.drawImage(testVideo.value!, 0, top, width, height);
-        const imageData = offscreenCtx.value.getImageData(0, 0, canvasSize.value.width, canvasSize.value.height);
+        let image = offscreenCtx.value.getImageData(0, 0, canvasSize.value.width, canvasSize.value.height);
 
         //灰度图‘
-        const data = imageData.data;
+        const data = image.data;
 
-        /*
-        for (let i = 0; i < data.length; i += 4) {
-          const avg = (data[i] + data[i + 1] + data[i + 2]) / 3;
-          data[i] = avg;
-          data[i + 1] = avg;
-          data[i + 2] = avg;
+        if (modeChoose.value == 1) {
+          for (let i = 0; i < data.length; i += 4) {
+            const avg = (data[i] + data[i + 1] + data[i + 2]) / 3;
+            data[i] = avg;
+            data[i + 1] = avg;
+            data[i + 2] = avg;
+          }
         }
-        */
 
-
-        let len = data.length * data.BYTES_PER_ELEMENT;
-        var ptr = Module._malloc(len);
-        Module.HEAPU8.set(data, ptr);
-
-        Module.ccall("image_process", "number", ["number", "number"], [ptr, len]);
-
-        let jsData = new Uint8ClampedArray(HEAPU8.subarray(ptr, ptr + len));
-
-        var image = new ImageData(jsData, imageData.width, imageData.height);
-
-        Module._free(ptr);
+        if (modeChoose.value == 3) {
+          let len = data.length * data.BYTES_PER_ELEMENT;
+          var ptr = Module._malloc(len);
+          Module.HEAPU8.set(data, ptr);
+          Module.ccall("image_process", "number", ["number", "number"], [ptr, len]);
+          let jsData = new Uint8ClampedArray(HEAPU8.subarray(ptr, ptr + len));
+          image = new ImageData(jsData, image.width, image.height);
+          Module._free(ptr);
+        }
 
         //渲染
         // canvasCtx.value!.putImageData(imageData, 0, 0);
@@ -147,11 +144,9 @@ export default defineComponent({
 
     const modeChange = () => {
       console.log(modeChoose.value);
-      if (modeChoose.value == 1) {
-
+      if (modeChoose.value == 1 || modeChoose.value == 3) {
         testVideo.value!.onplay = videoPlayCallBack;
         testVideo.value!.onpause = videoPauseCallBack;
-
       } else {
         testVideo.value!.onplay = wasm_videoPlayCallBack;
         testVideo.value!.onpause = wasm_videoPauseCallBack;
@@ -166,7 +161,7 @@ export default defineComponent({
 
     //@ts-ignore
     window.processVideoData = (imageData: ImageData, fps: number) => {
-      console.log(imageData,fpsNum)
+      console.log(imageData, fpsNum);
       const data = imageData.data;
       //灰度图‘
       for (let i = 0; i < data.length; i += 4) {
@@ -182,7 +177,7 @@ export default defineComponent({
     const handleFile = (event: Event) => {
       const file = (event.target as HTMLInputElement).files![0];
 
-      if (modeChoose.value == 1) {
+      if (modeChoose.value == 1 || modeChoose.value == 3) {
         const url = URL.createObjectURL(file);
 
         testVideo.value!.src = url;
