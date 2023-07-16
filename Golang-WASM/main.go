@@ -3,13 +3,34 @@ package main
 import (
 	"fmt"
 	"syscall/js"
+	"unsafe"
 )
+
+//export processGrayGo
+func processGrayGo(dataPtr uintptr, dataLen int) {
+	dataSlice := (*[1 << 30]byte)(unsafe.Pointer(dataPtr))[:dataLen:dataLen]
+
+	// 计算灰度图像
+	for i := 0; i < dataLen; i += 4 {
+		avg := (dataSlice[i] + dataSlice[i+1] + dataSlice[i+2]) / 3
+		dataSlice[i] = avg
+		dataSlice[i+1] = avg
+		dataSlice[i+2] = avg
+	}
+}
 
 func main() {
 	// 注册 JavaScript 回调函数
 	js.Global().Set("Wasm_handleFile", js.FuncOf(handleFile))
 	js.Global().Set("Wasm_videoPlayCallBack", js.FuncOf(videoPlayCallBack))
 	js.Global().Set("Wasm_videoPauseCallBack", js.FuncOf(videoPauseCallBack))
+
+	// 测试用例
+	data := []byte(`[{"r": 255, "g": 0, "b": 0}, {"r": 0, "g": 255, "b": 0}, {"r": 0, "g": 0, "b": 255}]`)
+
+	processGrayGo(uintptr(unsafe.Pointer(&data[0])), len(data))
+
+	fmt.Println(string(data))
 
 	// 保持 Wasm 模块运行，防止程序退出
 	select {}

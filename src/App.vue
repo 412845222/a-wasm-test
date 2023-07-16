@@ -16,6 +16,7 @@
         <option value="1">JavaScript</option>
         <option value="2">Golang_WASM</option>
         <option value="3">C++_WASM</option>
+        <option value="4">Golang_仿写cpp内存读写</option>
       </select>
     </div>
   </div>
@@ -23,7 +24,6 @@
 
 <script lang="ts">
 import { defineComponent, onMounted, ref } from "vue";
-
 export default defineComponent({
   name: "App",
   setup() {
@@ -42,6 +42,9 @@ export default defineComponent({
     let startTime = 0;
     let lastTime = 0;
 
+    let processGrayGo: any;
+    let wasmModule: any;
+
     const videoPlayCallBack = () => {
       startTime = performance.now();
       lastTime = startTime;
@@ -59,22 +62,49 @@ export default defineComponent({
       let top = (canvasSize.value.height - height) / 2;
 
       if (offscreenCtx.value) {
-        offscreenCtx.value.drawImage(testVideo.value!, 0, top, width, height);
-        let image = offscreenCtx.value.getImageData(0, 0, canvasSize.value.width, canvasSize.value.height);
+        if (modeChoose.value == 4) {
 
-        //灰度图‘
-        const data = image.data;
+          offscreenCtx.value.drawImage(testVideo.value!, 0, top, width*0.8, height*0.8);
+          let image: ImageData = offscreenCtx.value.getImageData(0, 0, canvasSize.value.width*0.8, canvasSize.value.height*0.8);
+
+          let data = image.data;
+
+          //golang 内存读写
+          const len = data.length * data.BYTES_PER_ELEMENT;
+          const dataPtr = wasmModule.instance.exports.malloc(len);
+          const dataView = new Uint8Array(wasmModule.instance.exports.memory.buffer, dataPtr);
+          dataView.set(data);
+          processGrayGo(dataPtr, len);
+          const newData = new Uint8ClampedArray(dataView.subarray(0, len));
+          image.data.set(newData);
+          canvasCtx.value!.putImageData(image, 0, 0);
+          wasmModule.instance.exports.free(dataPtr);
+          return;
+        }
 
         if (modeChoose.value == 1) {
+          offscreenCtx.value.drawImage(testVideo.value!, 0, top, width, height);
+          let image: ImageData = offscreenCtx.value.getImageData(0, 0, canvasSize.value.width, canvasSize.value.height);
+
+          //灰度图‘
+          let data = image.data;
           for (let i = 0; i < data.length; i += 4) {
             const avg = (data[i] + data[i + 1] + data[i + 2]) / 3;
             data[i] = avg;
             data[i + 1] = avg;
             data[i + 2] = avg;
           }
+          canvasCtx.value!.putImageData(image, 0, 0);
+          return;
         }
 
         if (modeChoose.value == 3) {
+          offscreenCtx.value.drawImage(testVideo.value!, 0, top, width, height);
+          let image: ImageData = offscreenCtx.value.getImageData(0, 0, canvasSize.value.width, canvasSize.value.height);
+
+          //灰度图‘
+          let data = image.data;
+
           let len = data.length * data.BYTES_PER_ELEMENT;
           var ptr = Module._malloc(len);
           Module.HEAPU8.set(data, ptr);
@@ -82,11 +112,9 @@ export default defineComponent({
           let jsData = new Uint8ClampedArray(HEAPU8.subarray(ptr, ptr + len));
           image = new ImageData(jsData, image.width, image.height);
           Module._free(ptr);
+          canvasCtx.value!.putImageData(image, 0, 0);
+          return;
         }
-
-        //渲染
-        // canvasCtx.value!.putImageData(imageData, 0, 0);
-        canvasCtx.value!.putImageData(image, 0, 0);
       }
     };
 
@@ -129,22 +157,44 @@ export default defineComponent({
       //@ts-ignore
       const go = new Go(); // Defined in wasm_exec.js
 
-      WebAssembly.instantiateStreaming(fetch("/wasm/main.wasm"), go.importObject).then((result) => {
-        go.run(result.instance);
+      const runGoWasm = async () => {
+        // Get the importObject from the go instance.
+        const importObject = go.importObject;
+
+        // Instantiate our wasm module
+        wasmModule = await WebAssembly.instantiateStreaming(fetch("/wasm/tiny_main.wasm"), importObject);
+
+        // Allow the wasm_exec go instance, bootstrap and execute our wasm module
+        go.run(wasmModule.instance);
+
         //@ts-ignore
         wasm_handleFile = window.Wasm_handleFile as Function;
         //@ts-ignore
         wasm_videoPlayCallBack = window.Wasm_videoPlayCallBack as Function;
         //@ts-ignore
         wasm_videoPauseCallBack = window.Wasm_videoPauseCallBack as Function;
-      });
+        //@ts-ignore
+        // processGrayGo = window.processGrayGo as Function
 
-      console.log(window);
+        processGrayGo = wasmModule.instance.exports.processGrayGo as Function;
+        // processGrayGo();
+
+        // 为参数分配内存并将数据写入内存
+        // const data = new Uint8Array([1, 2, 3, 4, 5]); // 示例数据
+        // const dataPtr = wasmModule.instance.exports.malloc(data.length);
+        // const dataView = new Uint8Array(wasmModule.instance.exports.memory.buffer, dataPtr, data.length);
+        // dataView.set(data);
+
+        // 调用 processGrayGo 函数并传递参数
+        // processGrayGo(dataPtr, data.length);
+      };
+
+      runGoWasm();
     });
 
     const modeChange = () => {
       console.log(modeChoose.value);
-      if (modeChoose.value == 1 || modeChoose.value == 3) {
+      if (modeChoose.value == 1 || modeChoose.value == 3 || modeChoose.value == 4) {
         testVideo.value!.onplay = videoPlayCallBack;
         testVideo.value!.onpause = videoPauseCallBack;
       } else {
@@ -177,7 +227,7 @@ export default defineComponent({
     const handleFile = (event: Event) => {
       const file = (event.target as HTMLInputElement).files![0];
 
-      if (modeChoose.value == 1 || modeChoose.value == 3) {
+      if (modeChoose.value == 1 || modeChoose.value == 3 || modeChoose.value == 4) {
         const url = URL.createObjectURL(file);
 
         testVideo.value!.src = url;

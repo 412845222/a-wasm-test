@@ -24,3 +24,8 @@ dist-ssr
 *.sw?
 
 build/
+Golang-WASM/.vscode
+Golang-WASM/go.mod
+Golang-WASM/main.wasm
+Golang-WASM/tiny_main.wasm
+Golang-WASM/go.sum
