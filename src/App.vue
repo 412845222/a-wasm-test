@@ -63,12 +63,9 @@ export default defineComponent({
 
       if (offscreenCtx.value) {
         if (modeChoose.value == 4) {
-
-          offscreenCtx.value.drawImage(testVideo.value!, 0, top, width*0.8, height*0.8);
-          let image: ImageData = offscreenCtx.value.getImageData(0, 0, canvasSize.value.width*0.8, canvasSize.value.height*0.8);
-
+          offscreenCtx.value.drawImage(testVideo.value!, 0, top, width, height);
+          let image: ImageData = offscreenCtx.value.getImageData(0, top, width, height);
           let data = image.data;
-
           //golang 内存读写
           const len = data.length * data.BYTES_PER_ELEMENT;
           const dataPtr = wasmModule.instance.exports.malloc(len);
@@ -77,30 +74,13 @@ export default defineComponent({
           processGrayGo(dataPtr, len);
           const newData = new Uint8ClampedArray(dataView.subarray(0, len));
           image.data.set(newData);
-          canvasCtx.value!.putImageData(image, 0, 0);
+          canvasCtx.value!.putImageData(image, 0, top);
           wasmModule.instance.exports.free(dataPtr);
           return;
         }
-
-        if (modeChoose.value == 1) {
-          offscreenCtx.value.drawImage(testVideo.value!, 0, top, width, height);
-          let image: ImageData = offscreenCtx.value.getImageData(0, 0, canvasSize.value.width, canvasSize.value.height);
-
-          //灰度图‘
-          let data = image.data;
-          for (let i = 0; i < data.length; i += 4) {
-            const avg = (data[i] + data[i + 1] + data[i + 2]) / 3;
-            data[i] = avg;
-            data[i + 1] = avg;
-            data[i + 2] = avg;
-          }
-          canvasCtx.value!.putImageData(image, 0, 0);
-          return;
-        }
-
         if (modeChoose.value == 3) {
           offscreenCtx.value.drawImage(testVideo.value!, 0, top, width, height);
-          let image: ImageData = offscreenCtx.value.getImageData(0, 0, canvasSize.value.width, canvasSize.value.height);
+          let image: ImageData = offscreenCtx.value.getImageData(0, top, width, height);
 
           //灰度图‘
           let data = image.data;
@@ -112,7 +92,23 @@ export default defineComponent({
           let jsData = new Uint8ClampedArray(HEAPU8.subarray(ptr, ptr + len));
           image = new ImageData(jsData, image.width, image.height);
           Module._free(ptr);
-          canvasCtx.value!.putImageData(image, 0, 0);
+          canvasCtx.value!.putImageData(image, 0, top);
+          return;
+        }
+
+        if (modeChoose.value == 1) {
+          offscreenCtx.value.drawImage(testVideo.value!, 0, top, width, height);
+          let image: ImageData = offscreenCtx.value.getImageData(0, top, width, height);
+
+          //灰度图‘
+          let data = image.data;
+          for (let i = 0; i < data.length; i += 4) {
+            const avg = (data[i] + data[i + 1] + data[i + 2]) / 3;
+            data[i] = avg;
+            data[i + 1] = avg;
+            data[i + 2] = avg;
+          }
+          canvasCtx.value!.putImageData(image, 0, top);
           return;
         }
       }
