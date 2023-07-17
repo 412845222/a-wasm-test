@@ -1,12 +1,6 @@
 <template>
-  <input type="file" accept="video/*" @change="handleFile" />
-  <div id="wasm-playground">
-    <div style="width: 100%">
-      <video id="video" controls ref="testVideo" src="" width="600" height="550"></video>
-      <canvas id="canvas" ref="testCanvas" src="" width="  598" height="550" style="border: 1px solid #000"></canvas>
-      <canvas id="offscreen" ref="offscreenDom" src="" width="  598" height="550" style="border: 1px solid #000; display: none"></canvas>
-    </div>
-
+  <div style="display: flex">
+    <input type="file" accept="video/*" @change="handleFile" />
     <h2>帧率: {{ fpsNum }}</h2>
 
     <div style="margin-left: 100px">
@@ -20,10 +14,21 @@
       </select>
     </div>
   </div>
+
+  <div id="wasm-playground">
+    <div style="width: 100%">
+      <video id="video" controls ref="testVideo" src="" width="600" height="550"></video>
+      <canvas id="canvas" ref="testCanvas" src="" width="  598" height="550" style="border: 1px solid #000"></canvas>
+      <canvas id="offscreen" ref="offscreenDom" src="" width="598" height="550" style="border: 1px solid #000; display: none"></canvas>
+
+      <iframe src="/cocos3D/index.html" width="1280" height="550" frameborder="0"></iframe>
+    </div>
+  </div>
 </template>
 
 <script lang="ts">
 import { defineComponent, onMounted, ref } from "vue";
+import { windowAddEvent, windowPostMsg } from "./utils/windowEvent";
 export default defineComponent({
   name: "App",
   setup() {
@@ -61,10 +66,15 @@ export default defineComponent({
       let height = videoSize.value.height / scale;
       let top = (canvasSize.value.height - height) / 2;
 
+      let image: ImageData | null = null;
+
       if (offscreenCtx.value) {
         if (modeChoose.value == 4) {
           offscreenCtx.value.drawImage(testVideo.value!, 0, top, width, height);
-          let image: ImageData = offscreenCtx.value.getImageData(0, top, width, height);
+          image = offscreenCtx.value.getImageData(0, top, width, height);
+          if (!image) {
+            return;
+          }
           let data = image.data;
           //golang 内存读写
           const len = data.length * data.BYTES_PER_ELEMENT;
@@ -74,13 +84,14 @@ export default defineComponent({
           processGrayGo(dataPtr, len);
           const newData = new Uint8ClampedArray(dataView.subarray(0, len));
           image.data.set(newData);
-          canvasCtx.value!.putImageData(image, 0, top);
           wasmModule.instance.exports.free(dataPtr);
-          return;
         }
         if (modeChoose.value == 3) {
           offscreenCtx.value.drawImage(testVideo.value!, 0, top, width, height);
-          let image: ImageData = offscreenCtx.value.getImageData(0, top, width, height);
+          image = offscreenCtx.value.getImageData(0, top, width, height);
+          if (!image) {
+            return;
+          }
 
           //灰度图‘
           let data = image.data;
@@ -92,25 +103,29 @@ export default defineComponent({
           let jsData = new Uint8ClampedArray(HEAPU8.subarray(ptr, ptr + len));
           image = new ImageData(jsData, image.width, image.height);
           Module._free(ptr);
-          canvasCtx.value!.putImageData(image, 0, top);
-          return;
         }
 
         if (modeChoose.value == 1) {
           offscreenCtx.value.drawImage(testVideo.value!, 0, top, width, height);
-          let image: ImageData = offscreenCtx.value.getImageData(0, top, width, height);
+          image = offscreenCtx.value.getImageData(0, top, width, height);
+          if (!image) {
+            return;
+          }
 
           //灰度图‘
-          let data = image.data;
-          for (let i = 0; i < data.length; i += 4) {
-            const avg = (data[i] + data[i + 1] + data[i + 2]) / 3;
-            data[i] = avg;
-            data[i + 1] = avg;
-            data[i + 2] = avg;
-          }
-          canvasCtx.value!.putImageData(image, 0, top);
-          return;
+          // let data = image.data;
+          // for (let i = 0; i < data.length; i += 4) {
+          //   const avg = (data[i] + data[i + 1] + data[i + 2]) / 3;
+          //   data[i] = avg;
+          //   data[i + 1] = avg;
+          //   data[i + 2] = avg;
+          // }
         }
+      }
+
+      if (image) {
+        canvasCtx.value!.putImageData(image, 0, top);
+        windowPostMsg(image);
       }
     };
 
@@ -126,7 +141,13 @@ export default defineComponent({
       }
     };
 
+    const msgCallBack = () => {
+      console.log("msgCallBack");
+    };
+
     onMounted(() => {
+      windowAddEvent(msgCallBack);
+
       if (testVideo.value && testCanvas.value) {
         canvasCtx.value = testCanvas.value.getContext("2d", { willReadFrequently: false })!;
         canvasSize.value.width = testCanvas.value.width;
