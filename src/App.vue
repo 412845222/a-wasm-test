@@ -1,7 +1,8 @@
 <template>
-  <div style="display: flex">
+  <div id="top">
+    <div style="width:100%">代码地址: https://github.com/412845222/a-wasm-test</div>
     <input type="file" accept="video/*" @change="handleFile" />
-    <h2>帧率: {{ fpsNum }}</h2>
+    <h1>帧率: {{ fpsNum }}</h1>
 
     <div style="margin-left: 100px">
       <h3>灰度滤镜运算</h3>
@@ -12,14 +13,13 @@
         <option value="2">Golang_WASM</option>
         <option value="3">C++_WASM</option>
         <option value="4">Golang_仿写cpp内存读写</option>
-        
       </select>
     </div>
   </div>
 
   <div id="wasm-playground">
     <div style="width: 100%">
-      <video id="video" controls ref="testVideo" src="" width="600" height="550"></video>
+      <video id="video" controls ref="testVideo" src="" width="1280" height="250"></video>
       <div>
         <canvas id="canvas" ref="testCanvas" src="" width="598" height="550" style="border: 1px solid #000"></canvas>
         <canvas id="canvasgl" ref="testCanvasGl" src="" width="598" height="550" style="border: 1px solid #000"></canvas>
@@ -69,8 +69,6 @@ export default defineComponent({
       cancelAnimationFrame(animeTimer);
     };
 
-
-
     const drawVideoToCanvas = () => {
       if (modeChoose.value == 5) {
         glRender();
@@ -92,6 +90,7 @@ export default defineComponent({
           let data = image.data;
           //golang 内存读写
           const len = data.length * data.BYTES_PER_ELEMENT;
+          //@ts-ignore
           const dataPtr = wasmModule.instance.exports.malloc(len);
           const dataView = new Uint8Array(wasmModule.instance.exports.memory.buffer, dataPtr);
           dataView.set(data);
@@ -111,11 +110,16 @@ export default defineComponent({
           let data = image.data;
 
           let len = data.length * data.BYTES_PER_ELEMENT;
+          //@ts-ignore
           var ptr = Module._malloc(len);
+          //@ts-ignore
           Module.HEAPU8.set(data, ptr);
+          //@ts-ignore
           Module.ccall("image_process", "number", ["number", "number"], [ptr, len]);
+          //@ts-ignore
           let jsData = new Uint8ClampedArray(HEAPU8.subarray(ptr, ptr + len));
           image = new ImageData(jsData, image.width, image.height);
+          //@ts-ignore
           Module._free(ptr);
         }
 
@@ -141,8 +145,8 @@ export default defineComponent({
         canvasCtx.value!.putImageData(image, 0, top);
         let msg = {
           mode: "2d",
-          data:image
-        }
+          data: image,
+        };
         windowPostMsg(msg);
       }
     };
@@ -164,6 +168,29 @@ export default defineComponent({
     };
 
     onMounted(() => {
+      //@ts-ignore
+      const go = new Go(); // Defined in wasm_exec.js
+      const runGoWasm = async () => {
+        // Get the importObject from the go instance.
+        const importObject = go.importObject;
+
+        // Instantiate our wasm module
+        wasmModule = await WebAssembly.instantiateStreaming(fetch("/wasm/tiny_main.wasm"), importObject);
+
+        // Allow the wasm_exec go instance, bootstrap and execute our wasm module
+        go.run(wasmModule.instance);
+
+        //@ts-ignore
+        wasm_handleFile = window.Wasm_handleFile as Function;
+        //@ts-ignore
+        wasm_videoPlayCallBack = window.Wasm_videoPlayCallBack as Function;
+        //@ts-ignore
+        wasm_videoPauseCallBack = window.Wasm_videoPauseCallBack as Function;
+        //@ts-ignore
+        processGrayGo = wasmModule.instance.exports.processGrayGo as Function;
+      };
+
+      runGoWasm();
       windowAddEvent(msgCallBack);
 
       if (testVideo.value && testCanvas.value) {
@@ -193,31 +220,7 @@ export default defineComponent({
         fpsNum.value = fps;
       };
 
-      //@ts-ignore
-      const go = new Go(); // Defined in wasm_exec.js
-
-      const runGoWasm = async () => {
-        // Get the importObject from the go instance.
-        const importObject = go.importObject;
-
-        // Instantiate our wasm module
-        wasmModule = await WebAssembly.instantiateStreaming(fetch("/wasm/tiny_main.wasm"), importObject);
-
-        // Allow the wasm_exec go instance, bootstrap and execute our wasm module
-        go.run(wasmModule.instance);
-
-        //@ts-ignore
-        wasm_handleFile = window.Wasm_handleFile as Function;
-        //@ts-ignore
-        wasm_videoPlayCallBack = window.Wasm_videoPlayCallBack as Function;
-        //@ts-ignore
-        wasm_videoPauseCallBack = window.Wasm_videoPauseCallBack as Function;
-        //@ts-ignore
-
-        processGrayGo = wasmModule.instance.exports.processGrayGo as Function;
-      };
-
-      runGoWasm();
+      
     });
 
     const modeChange = () => {
@@ -351,7 +354,6 @@ export default defineComponent({
       gl.vertexAttribPointer(texCoordLocation, 2, gl.FLOAT, false, 0, 0);
       gl.uniform1i(textureLocation, 0);
     };
-
 
     const glRender = () => {
       const gl = canvasGLCtx.value;
