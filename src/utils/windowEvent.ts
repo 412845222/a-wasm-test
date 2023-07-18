@@ -12,7 +12,7 @@ function windowAddEvent(callback:any) {
 }
 
 //http://localhost:7456/
-
+// /cocos3D/index.html
 function windowPostMsg(data:any){
   try {
     const iframe_dom = document.getElementsByTagName("iframe")[0]

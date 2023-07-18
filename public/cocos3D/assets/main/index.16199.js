@@ -836,20 +836,23 @@ System.register("chunks:///_virtual/tvmodel.ts", ['./rollupPluginModLoBabelHelpe
         _proto.start = function start() {
           windowAddEvent(this.node);
           this.modelMat = this.targetModel.getComponent(MeshRenderer).getRenderMaterial(0);
+          console.log(this.modelMat.name);
           this.modelMat.setProperty("albedo", new Color(255, 255, 255, 255));
           this.modelMat.setProperty("albedoMap", null);
           this.offScreenCanvas = new OffscreenCanvas(598, 550);
           this.offScreenCanvasCtx = this.offScreenCanvas.getContext('2d');
         };
 
-        _proto.videoRender = function videoRender(imageData) {
-          var _this$modelMat;
+        _proto.videoRender = function videoRender(data) {
+          if (data.mode == '2d') {
+            var _this$modelMat;
 
-          this.offScreenCanvasCtx.putImageData(imageData, 0, 0);
-          var imageAsset = new ImageAsset(this.offScreenCanvas.transferToImageBitmap());
-          var texture = new Texture2D();
-          texture.image = imageAsset;
-          (_this$modelMat = this.modelMat) == null ? void 0 : _this$modelMat.setProperty("albedoMap", texture);
+            this.offScreenCanvasCtx.putImageData(data.data, 0, 0);
+            var imageAsset = new ImageAsset(this.offScreenCanvas.transferToImageBitmap());
+            var texture = new Texture2D();
+            texture.image = imageAsset;
+            (_this$modelMat = this.modelMat) == null ? void 0 : _this$modelMat.setProperty("albedoMap", texture);
+          }
         };
 
         _proto.update = function update(deltaTime) {};
@@ -891,14 +894,15 @@ System.register("chunks:///_virtual/windowEvent.ts", ['cc', './tvmodel.ts'], fun
           // console.log(event.data)
           if (target) {
             targetNode = target;
-            targetNode.getComponent(tvmodel).videoRender(event.data);
           }
 
           changeSomething(event.data);
         }, false);
       }
 
-      function changeSomething(msg) {}
+      function changeSomething(msg) {
+        targetNode.getComponent(tvmodel).videoRender(msg);
+      }
 
       cclegacy._RF.pop();
     }
