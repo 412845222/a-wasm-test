@@ -27,6 +27,14 @@ export default defineComponent({
 
 
 <style scoped>
+#video-preview {
+  width: 100%;
+  height: 100%;
+  background-color: #21252b;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
 #video {
   width: 100%;
   height: 100%;

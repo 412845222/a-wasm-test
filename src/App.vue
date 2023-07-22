@@ -45,7 +45,7 @@ export default defineComponent({
                   name:"Video视频预览",
                   styleValue:{
                     width:"100%",
-                    height:"30%",
+                    height:"50%",
                     backgroundColor:"#282C34",
                   },
                   component:VideoPreview
@@ -54,7 +54,7 @@ export default defineComponent({
                   name:"Cocos3D 预览",
                   styleValue:{
                     width:"100%",
-                    height:"30%",
+                    height:"50%",
                     backgroundColor:"#21252B",
                   },
                 })
